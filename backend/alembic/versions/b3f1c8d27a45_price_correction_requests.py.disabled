@@ -1,0 +1,58 @@
+"""add price correction requests and corrected_at
+
+Revision ID: b3f1c8d27a45
+Revises: 9c2d7e4a1b63
+Create Date: 2026-10-14
+"""
+from typing import Sequence, Union
+
+from alembic import op
+import sqlalchemy as sa
+
+revision: str = "b3f1c8d27a45"
+down_revision: Union[str, Sequence[str], None] = "9c2d7e4a1b63"
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
+
+
+def upgrade() -> None:
+    op.add_column("price_entries", sa.Column("corrected_at", sa.DateTime(timezone=True), nullable=True))
+
+    op.create_table(
+        "price_correction_requests",
+        sa.Column("id", sa.Integer(), primary_key=True),
+        sa.Column("price_entry_id", sa.Integer(), sa.ForeignKey("price_entries.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("requested_by_user_id", sa.Integer(), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
+        sa.Column("requester_name", sa.String(length=150), nullable=False),
+        sa.Column("original_price", sa.Numeric(12, 2), nullable=False),
+        sa.Column("proposed_price", sa.Numeric(12, 2), nullable=False),
+        sa.Column("reason", sa.Text(), nullable=False),
+        sa.Column("status", sa.String(length=20), nullable=False, server_default="pending"),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("reviewed_by_user_id", sa.Integer(), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
+        sa.Column("reviewer_name", sa.String(length=150), nullable=True),
+        sa.Column("review_note", sa.Text(), nullable=True),
+        sa.Column("reviewed_at", sa.DateTime(timezone=True), nullable=True),
+        sa.CheckConstraint("status IN ('pending','approved','rejected')", name="ck_price_correction_status"),
+    )
+    op.create_index("ix_price_correction_requests_id", "price_correction_requests", ["id"])
+    op.create_index("ix_price_correction_requests_price_entry_id", "price_correction_requests", ["price_entry_id"])
+    op.create_index("ix_price_correction_requests_requested_by_user_id", "price_correction_requests", ["requested_by_user_id"])
+    op.create_index("ix_price_correction_requests_status", "price_correction_requests", ["status"])
+    # Only one pending request per entry, enforced by the database itself.
+    op.create_index(
+        "uq_price_correction_one_pending_per_entry",
+        "price_correction_requests",
+        ["price_entry_id"],
+        unique=True,
+        postgresql_where=sa.text("status = 'pending'"),
+    )
+
+
+def downgrade() -> None:
+    # Dropping the table discards correction history, so refuse if any exists.
+    count = op.get_bind().scalar(sa.text("SELECT COUNT(*) FROM price_correction_requests"))
+    if count:
+        raise RuntimeError("Cannot downgrade: correction requests exist and would be lost.")
+    op.drop_table("price_correction_requests")
+    op.drop_column("price_entries", "corrected_at")
