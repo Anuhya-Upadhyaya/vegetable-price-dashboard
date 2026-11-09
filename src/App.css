@@ -1351,3 +1351,89 @@ body {
 .register-link a:hover {
   text-decoration: underline;
 }
+.back-to-home {
+  position: fixed;
+  top: 24px;
+  left: 28px;
+  z-index: 1000;
+
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+
+  padding: 11px 18px;
+  border: 1px solid rgba(23, 60, 42, 0.2);
+  border-radius: 12px;
+
+  background: rgba(255, 255, 255, 0.92);
+  color: #173c2a;
+
+  font-size: 14px;
+  font-weight: 600;
+
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.back-to-home:hover {
+  background: #173c2a;
+  color: #ffffff;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(23, 60, 42, 0.15);
+}
+
+@media (max-width: 600px) {
+  .back-to-home {
+    top: 14px;
+    left: 14px;
+    padding: 9px 12px;
+    font-size: 12px;
+  }
+}
+
+.app-loading {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: #f5f0e4;
+  color: #173c2a;
+  font-family: Arial, sans-serif;
+  text-align: center;
+}
+
+.app-loading h2 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.app-loading p {
+  margin: 0;
+  font-size: 14px;
+  opacity: 0.8;
+}
+
+.loading-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid rgba(23, 60, 42, 0.15);
+  border-top-color: #173c2a;
+  border-radius: 50%;
+  animation: freshflow-spin 0.7s linear infinite;
+}
+
+@keyframes freshflow-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading-spinner {
+    animation-duration: 2s;
+  }
+}

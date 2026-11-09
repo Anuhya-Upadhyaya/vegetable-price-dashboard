@@ -1,3 +1,6 @@
+
+from datetime import datetime, timezone
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
@@ -6,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.core.security import decode_access_token
 from app.db.session import get_db
 from app.models.user import User
+from app.models.user_session import UserSession
 
 
 bearer_scheme = HTTPBearer()
@@ -27,11 +31,12 @@ def get_current_user(
         )
 
     subject = payload.get("sub")
+    session_id = payload.get("sid")
 
-    if subject is None:
+    if subject is None or not session_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication token",
+            detail="Invalid authentication token. Please log in again.",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -44,8 +49,26 @@ def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    statement = select(User).where(User.id == user_id)
-    user = db.scalar(statement)
+    now = datetime.now(timezone.utc)
+
+    session_statement = select(UserSession).where(
+        UserSession.session_id == session_id,
+        UserSession.user_id == user_id,
+        UserSession.revoked_at.is_(None),
+        UserSession.expires_at > now,
+    )
+
+    user_session = db.scalar(session_statement)
+
+    if user_session is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session is invalid or has expired. Please log in again.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    user_statement = select(User).where(User.id == user_id)
+    user = db.scalar(user_statement)
 
     if user is None:
         raise HTTPException(

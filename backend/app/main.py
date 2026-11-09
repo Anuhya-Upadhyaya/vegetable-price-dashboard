@@ -7,6 +7,8 @@ from app.api.routes.entries import router as entries_router
 from app.api.routes.vegetables import router as vegetables_router
 from app.core.config import settings
 from app.api.routes.chat import router as chat_router
+from app.api.routes.customers import router as customers_router
+from app.api.routes.notifications import router as notifications_router
 
 
 app = FastAPI(
@@ -77,3 +79,5 @@ app.include_router(
 
 app.include_router(vegetables_router, prefix="/api/v1")
 app.include_router(chat_router, prefix="/api/v1")
+app.include_router(customers_router, prefix="/api/v1")
+app.include_router(notifications_router, prefix="/api/v1")

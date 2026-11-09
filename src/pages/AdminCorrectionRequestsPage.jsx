@@ -68,7 +68,7 @@ export default function AdminCorrectionRequestsPage() {
       const role = typeof current?.role === "string" ? current.role.toLowerCase() : current?.role?.name?.toLowerCase();
       if (role !== "admin") {
         logout();
-        navigate("/", { replace: true });
+        navigate("/login", { replace: true });
         return;
       }
       setAdmin(current);
@@ -78,7 +78,7 @@ export default function AdminCorrectionRequestsPage() {
       setError(text);
       if (/token|unauthorized|authentication|credentials/i.test(text)) {
         logout();
-        navigate("/", { replace: true });
+        navigate("/login", { replace: true });
       }
     } finally {
       setLoading(false);

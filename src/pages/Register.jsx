@@ -1,499 +1,394 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+
 import "../App.css";
+import heroImage from "../assets/hero.jpg";
 
-import { registerUser } from "../services/api";
+import {
+  loginUser,
+  saveToken,
+  getCurrentUser,
+} from "../services/api";
 
-function Register() {
-  const navigate = useNavigate();
-
-  const [formData, setFormData] = useState({
-    full_name: "",
-    username: "",
-    email: "",
-    phone: "",
-    password: "",
-    confirmPassword: "",
-  });
+function Login() {
+  const [role, setRole] = useState("user");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
 
-  // ============================================================
-  // HANDLE INPUT CHANGES
-  // ============================================================
+  const navigate = useNavigate();
 
-  const handleChange = (event) => {
-    const { name, value } = event.target;
+  // ==========================================
+  // CLEAR LOGIN FORM
+  // ==========================================
 
-    setFormData((previousData) => ({
-      ...previousData,
-      [name]: value,
-    }));
-
+  const clearLoginFields = () => {
+    setEmail("");
+    setPassword("");
     setErrorMessage("");
-    setSuccessMessage("");
   };
 
-  // ============================================================
-  // HANDLE REGISTRATION
-  // ============================================================
+  // ==========================================
+  // HANDLE LOGIN
+  // ==========================================
 
-  const handleRegister = async (event) => {
-    event.preventDefault();
+  const handleLogin = async (e) => {
+    e.preventDefault();
 
     setErrorMessage("");
-    setSuccessMessage("");
-
-    const {
-      full_name,
-      username,
-      email,
-      phone,
-      password,
-      confirmPassword,
-    } = formData;
-
-    // ==========================================================
-    // BASIC VALIDATION
-    // ==========================================================
-
-    if (
-      !full_name.trim() ||
-      !username.trim() ||
-      !email.trim() ||
-      !phone.trim() ||
-      !password ||
-      !confirmPassword
-    ) {
-      setErrorMessage("Please fill in all the fields.");
-      return;
-    }
-
-    // ==========================================================
-    // PASSWORD LENGTH
-    // ==========================================================
-
-    if (password.length < 8) {
-      setErrorMessage(
-        "Your password must contain at least 8 characters."
-      );
-      return;
-    }
-
-    // ==========================================================
-    // PASSWORD MATCH
-    // ==========================================================
-
-    if (password !== confirmPassword) {
-      setErrorMessage("The passwords do not match.");
-      return;
-    }
-
-    // ==========================================================
-    // EMAIL VALIDATION
-    // ==========================================================
-
-    if (!/^\S+@\S+\.\S+$/.test(email.trim())) {
-      setErrorMessage("Please enter a valid email address.");
-      return;
-    }
-
-    // ==========================================================
-    // PHONE VALIDATION
-    // ==========================================================
-
-    if (!/^\+?[0-9\s()-]{7,20}$/.test(phone.trim())) {
-      setErrorMessage("Please enter a valid phone number.");
-      return;
-    }
-
     setLoading(true);
 
     try {
-      // ========================================================
-      // SEND REGISTRATION DATA TO FASTAPI
-      // ========================================================
+      // STEP 1: LOGIN THROUGH FASTAPI
 
-      const response = await registerUser({
-        full_name: full_name.trim(),
-        username: username.trim(),
-        email: email.trim(),
-        phone: phone.trim(),
-        password: password,
-        confirm_password: confirmPassword,
-      });
-
-      // ========================================================
-      // REGISTRATION SUCCESS
-      // ========================================================
-
-      setSuccessMessage(
-        response?.message ||
-          "Registration submitted successfully. Awaiting administrator approval."
+      const loginData = await loginUser(
+        email.trim(),
+        password
       );
 
-      // Clear the form after successful registration
-      setFormData({
-        full_name: "",
-        username: "",
-        email: "",
-        phone: "",
-        password: "",
-        confirmPassword: "",
-      });
+      if (!loginData.access_token) {
+        throw new Error(
+          "Login was successful, but no access token was received."
+        );
+      }
+
+      // STEP 2: STORE JWT TOKEN
+
+      saveToken(loginData.access_token);
+
+      // STEP 3: GET CURRENT USER FROM BACKEND
+
+      const currentUser = await getCurrentUser();
+
+      // STEP 4: CLEAR PASSWORD
+
+      setPassword("");
+
+      // STEP 5: REDIRECT BASED ON BACKEND ROLE
+
+      if (currentUser.role === "admin") {
+        localStorage.setItem("portal_role", "admin");
+
+        setEmail("");
+        navigate("/admin");
+      } else if (currentUser.role === "user") {
+        localStorage.setItem("portal_role", "user");
+
+        setEmail("");
+        navigate("/user");
+      } else {
+        throw new Error(
+          "Your account has an invalid role. Please contact the administrator."
+        );
+      }
     } catch (error) {
-      console.error("Registration error:", error);
+      console.error("Login error:", error);
 
-      // ========================================================
-      // REGISTRATION ERROR
-      // ========================================================
+      // REMOVE AUTH DATA IF LOGIN FAILED
 
-      setErrorMessage(
-        error?.message ||
-          "Registration failed. Please try again."
-      );
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("portal_role");
+
+      setPassword("");
+
+      // USER-FRIENDLY ERROR MESSAGES
+
+      const errorText =
+        error?.message?.toLowerCase() || "";
+
+      if (
+        errorText.includes("incorrect email") ||
+        errorText.includes("password")
+      ) {
+        setErrorMessage(
+          "Invalid email or password, or your account is not approved."
+        );
+      } else if (
+        errorText.includes("connect") ||
+        errorText.includes("failed to fetch")
+      ) {
+        setErrorMessage(
+          "Unable to connect to the server. Please make sure the FastAPI backend is running."
+        );
+      } else {
+        setErrorMessage(
+          error?.message ||
+            "Something went wrong. Please try again."
+        );
+      }
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <main className="register-page">
+    <div className="login-page">
 
-      {/* ======================================================
-          REGISTRATION CARD
-      ====================================================== */}
+      {/* BACK TO HOME BUTTON */}
 
-      <section className="register-card">
+      <button
+        type="button"
+        className="back-to-home"
+        onClick={() => navigate("/")}
+        aria-label="Back to Veegronex home page"
+      >
+        <span aria-hidden="true">←</span>
+        Back to Home
+      </button>
 
-        {/* ====================================================
-            BRAND
-        ==================================================== */}
+      {/* LEFT HERO */}
 
-        <div className="register-brand">
+      <section
+        className="login-hero"
+        style={{
+          backgroundImage: `
+            linear-gradient(
+              to bottom,
+              rgba(10, 45, 25, 0.05) 0%,
+              rgba(5, 60, 32, 0.12) 30%,
+              rgba(3, 58, 32, 0.35) 55%,
+              rgba(2, 50, 28, 0.72) 78%,
+              rgba(2, 43, 25, 0.96) 100%
+            ),
+            url(${heroImage})
+          `,
+        }}
+      >
+        <div className="hero-overlay">
+          <div className="hero-content">
 
-          <div className="register-logo">
+            <span className="hero-label">
+              <span className="hero-dot"></span>
+              DIRECT FROM SOURCE
+            </span>
+
+            <h1>
+              Fresh prices,
+              <br />
+              straight from
+              <br />
+              the field.
+            </h1>
+
+            <p>
+              A smarter way to manage daily vegetable prices,
+              monitor market trends, and keep your business
+              connected to fresh produce.
+            </p>
+
+            <div className="hero-bottom-line">
+              <span></span>
+              LIVE VEGETABLE PRICE MANAGEMENT
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      {/* RIGHT LOGIN SECTION */}
+
+      <section className="login-section">
+        <div className="login-container">
+
+          {/* COMPANY LOGO */}
+
+          <div className="logo-placeholder">
             VG
           </div>
 
-          <div>
-            <h1>Veegronex FreshFlow</h1>
-            <p>Fresh produce. Smarter decisions.</p>
-          </div>
+          <h2 className="company-name">
+            Veegronex FreshFlow
+          </h2>
 
-        </div>
+          {/* LOGIN CARD */}
 
+          <div className="login-card">
 
-        {/* ====================================================
-            HEADING
-        ==================================================== */}
+            <h3>
+              Welcome back
+            </h3>
 
-        <div className="register-heading">
-
-          <span className="register-eyebrow">
-            CREATE YOUR ACCOUNT
-          </span>
-
-          <h2>Join FreshFlow</h2>
-
-          <p>
-            Create your account to access the vegetable
-            price management platform.
-          </p>
-
-        </div>
-
-
-        {/* ====================================================
-            ERROR MESSAGE
-        ==================================================== */}
-
-        {errorMessage && (
-          <div
-            className="register-error"
-            role="alert"
-          >
-            <span aria-hidden="true">
-              !
-            </span>
-
-            <p>
-              {errorMessage}
+            <p className="login-description">
+              Sign in to access the vegetable price management portal.
             </p>
-          </div>
-        )}
 
+            {/* ROLE TOGGLE */}
 
-        {/* ====================================================
-            SUCCESS MESSAGE
-        ==================================================== */}
-
-        {successMessage && (
-          <div
-            className="register-success"
-            role="status"
-            aria-live="polite"
-          >
-
-            <span aria-hidden="true">
-              ✓
-            </span>
-
-            <div>
-
-              <strong>
-                Registration submitted!
-              </strong>
-
-              <p>
-                {successMessage}
-              </p>
-
-              <p>
-                Your account will be available after an
-                administrator approves it.
-              </p>
+            <div className="role-toggle">
 
               <button
                 type="button"
-                className="register-return-button"
-                onClick={() => navigate("/")}
+                className={
+                  role === "user" ? "active" : ""
+                }
+                onClick={() => {
+                  setRole("user");
+                  clearLoginFields();
+                }}
+                disabled={loading}
               >
-                Return to Login
+                Portal User
+              </button>
+
+              <button
+                type="button"
+                className={
+                  role === "admin" ? "active" : ""
+                }
+                onClick={() => {
+                  setRole("admin");
+                  clearLoginFields();
+                }}
+                disabled={loading}
+              >
+                Admin
               </button>
 
             </div>
 
-          </div>
-        )}
+            {/* ERROR MESSAGE */}
 
+            {errorMessage && (
+              <div
+                className="login-error"
+                role="alert"
+              >
+                {errorMessage}
+              </div>
+            )}
 
-        {/* ====================================================
-            REGISTRATION FORM
-        ==================================================== */}
+            {/* LOGIN FORM */}
 
-        {!successMessage && (
-          <form
-            className="register-form"
-            onSubmit={handleRegister}
-          >
-
-            {/* ==================================================
-                FULL NAME
-            ================================================== */}
-
-            <div className="register-field">
-
-              <label htmlFor="full_name">
-                Full Name
-              </label>
-
-              <input
-                id="full_name"
-                name="full_name"
-                type="text"
-                placeholder="Enter your full name"
-                value={formData.full_name}
-                onChange={handleChange}
-                autoComplete="name"
-                maxLength={100}
-                required
-                disabled={loading}
-              />
-
-            </div>
-
-
-            {/* ==================================================
-                USERNAME
-            ================================================== */}
-
-            <div className="register-field">
-
-              <label htmlFor="username">
-                Username
-              </label>
-
-              <input
-                id="username"
-                name="username"
-                type="text"
-                placeholder="Choose a username"
-                value={formData.username}
-                onChange={handleChange}
-                autoComplete="username"
-                maxLength={50}
-                required
-                disabled={loading}
-              />
-
-            </div>
-
-
-            {/* ==================================================
-                EMAIL
-            ================================================== */}
-
-            <div className="register-field">
-
-              <label htmlFor="email">
-                Email Address
-              </label>
-
-              <input
-                id="email"
-                name="email"
-                type="email"
-                placeholder="you@example.com"
-                value={formData.email}
-                onChange={handleChange}
-                autoComplete="email"
-                maxLength={254}
-                required
-                disabled={loading}
-              />
-
-            </div>
-
-
-            {/* ==================================================
-                PHONE
-            ================================================== */}
-
-            <div className="register-field">
-
-              <label htmlFor="phone">
-                Phone Number
-              </label>
-
-              <input
-                id="phone"
-                name="phone"
-                type="tel"
-                placeholder="Enter your phone number"
-                value={formData.phone}
-                onChange={handleChange}
-                autoComplete="tel"
-                maxLength={20}
-                required
-                disabled={loading}
-              />
-
-            </div>
-
-
-            {/* ==================================================
-                PASSWORD
-            ================================================== */}
-
-            <div className="register-field">
-
-              <label htmlFor="password">
-                Password
-              </label>
-
-              <input
-                id="password"
-                name="password"
-                type="password"
-                placeholder="Create a password"
-                value={formData.password}
-                onChange={handleChange}
-                autoComplete="new-password"
-                minLength={8}
-                required
-                disabled={loading}
-              />
-
-              <small>
-                Use at least 8 characters.
-              </small>
-
-            </div>
-
-
-            {/* ==================================================
-                CONFIRM PASSWORD
-            ================================================== */}
-
-            <div className="register-field">
-
-              <label htmlFor="confirmPassword">
-                Confirm Password
-              </label>
-
-              <input
-                id="confirmPassword"
-                name="confirmPassword"
-                type="password"
-                placeholder="Re-enter your password"
-                value={formData.confirmPassword}
-                onChange={handleChange}
-                autoComplete="new-password"
-                minLength={8}
-                required
-                disabled={loading}
-              />
-
-            </div>
-
-
-            {/* ==================================================
-                CREATE ACCOUNT BUTTON
-            ================================================== */}
-
-            <button
-              type="submit"
-              className="register-submit"
-              disabled={loading}
+            <form
+              onSubmit={handleLogin}
+              autoComplete="off"
             >
-              {loading
-                ? "Submitting Registration..."
-                : "Create Account"}
-            </button>
 
-          </form>
-        )}
+              {/* EMAIL */}
 
+              <div className="input-group">
+                <label htmlFor="login-email">
+                  EMAIL
+                </label>
 
-        {/* ====================================================
-            FOOTER
-        ==================================================== */}
+                <input
+                  id="login-email"
+                  name="login-email"
+                  type="email"
+                  placeholder="Enter your email address"
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    setErrorMessage("");
+                  }}
+                  required
+                  disabled={loading}
+                  autoComplete="off"
+                  spellCheck="false"
+                />
+              </div>
 
-        <div className="register-footer">
+              {/* PASSWORD */}
 
-          <p>
-            Already have an account?{" "}
-            <Link to="/">
-              Sign in
-            </Link>
-          </p>
+              <div className="input-group">
+                <label htmlFor="login-password">
+                  PASSWORD
+                </label>
 
+                <input
+                  id="login-password"
+                  name="login-password"
+                  type="password"
+                  placeholder="Enter your password"
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    setErrorMessage("");
+                  }}
+                  required
+                  disabled={loading}
+                  autoComplete="new-password"
+                />
+              </div>
 
-          {/* ==================================================
-              SECURITY INFORMATION
-          ================================================== */}
+              {/* FORGOT PASSWORD */}
 
-          <div className="register-security">
+              <div className="forgot-password">
+                <button
+                  type="button"
+                  onClick={() =>
+                    alert(
+                      "Password recovery will be implemented later."
+                    )
+                  }
+                  disabled={loading}
+                >
+                  Forgot password?
+                </button>
+              </div>
 
-            <span aria-hidden="true">
-              🔒
-            </span>
+              {/* LOGIN BUTTON */}
 
+              <button
+                type="submit"
+                className="login-button"
+                disabled={loading}
+              >
+                {loading
+                  ? "Signing in..."
+                  : "Sign in to Portal"}
+              </button>
+
+            </form>
+
+            {/* REGISTRATION LINK */}
+
+            {role === "user" && (
+              <div className="register-link">
+                <span>
+                  Don't have an account?
+                </span>
+
+                <Link to="/register">
+                  Create an account
+                </Link>
+              </div>
+            )}
+
+            {/* LOGIN INFORMATION */}
+
+            <div className="demo-box">
+              <strong>
+                PORTAL ACCESS
+              </strong>
+
+              <p>
+                Use your approved Veegronex FreshFlow account
+                credentials to access the selected portal.
+              </p>
+            </div>
+
+          </div>
+
+          {/* SECURITY INFORMATION */}
+
+          <div className="security-info">
             <span>
-              Your account requires administrator approval.
+              🔒 Secure connection
             </span>
 
+            <span className="system-status">
+              ● System operational
+            </span>
           </div>
 
         </div>
-
       </section>
 
-    </main>
+    </div>
   );
 }
 
-export default Register;
+export default Login;

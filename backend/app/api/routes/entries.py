@@ -1,3 +1,6 @@
+import logging
+
+logger = logging.getLogger(__name__)
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
@@ -12,6 +15,7 @@ from app.models.user import User
 from app.models.vegetable import Vegetable
 from app.models.correction_request import PriceCorrectionRequest
 from app.schemas.price_entry import PriceEntryCreate, PriceEntryResponse, PriceCorrectionCreate
+from app.services.notifications import notify_admins, send_admin_email
 
 router = APIRouter(prefix="/entries", tags=["Vegetable Price Entries"])
 
@@ -145,6 +149,7 @@ def _correction_payload(request: PriceCorrectionRequest, entry: PriceEntry) -> d
     }
 
 
+
 @router.post("/{entry_id}/correction-requests", status_code=status.HTTP_201_CREATED)
 def create_correction_request(
     entry_id: int,
@@ -152,12 +157,21 @@ def create_correction_request(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Submit a correction request for one of the authenticated user's entries."""
+    """Submit a price correction request and immediately notify the admin."""
+
     entry = db.get(PriceEntry, entry_id)
+
     if entry is None:
-        raise HTTPException(status_code=404, detail="Price entry not found")
+        raise HTTPException(
+            status_code=404,
+            detail="Price entry not found",
+        )
+
     if entry.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="You can request corrections only for your own entries")
+        raise HTTPException(
+            status_code=403,
+            detail="You can request corrections only for your own entries",
+        )
 
     pending = db.scalar(
         select(PriceCorrectionRequest).where(
@@ -165,27 +179,110 @@ def create_correction_request(
             PriceCorrectionRequest.status == "pending",
         )
     )
+
     if pending is not None:
-        raise HTTPException(status_code=409, detail="A correction request for this entry is already pending")
+        raise HTTPException(
+            status_code=409,
+            detail="A correction request for this entry is already pending",
+        )
 
-    if payload.proposed_price == entry.price and (payload.proposed_notes or None) == (entry.notes or None):
-        raise HTTPException(status_code=422, detail="The proposed correction is identical to the current entry")
+    proposed_notes = (payload.proposed_notes or "").strip() or None
 
-    request = PriceCorrectionRequest(
+    if (
+        payload.proposed_price == entry.price
+        and proposed_notes == (entry.notes or None)
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail="The proposed correction is identical to the current entry",
+        )
+
+    correction_request = PriceCorrectionRequest(
         entry_id=entry.id,
         user_id=current_user.id,
         submitter_name=current_user.full_name or current_user.username,
         original_price=entry.price,
         original_notes=entry.notes,
         proposed_price=payload.proposed_price,
-        proposed_notes=(payload.proposed_notes or "").strip() or None,
+        proposed_notes=proposed_notes,
         reason=payload.reason.strip(),
         status="pending",
     )
-    db.add(request)
-    db.commit()
-    db.refresh(request)
-    return _correction_payload(request, entry)
+
+    # Save the correction request first.
+    db.add(correction_request)
+
+    try:
+        db.commit()
+        db.refresh(correction_request)
+    except Exception:
+        db.rollback()
+        logger.exception("Failed to save price correction request")
+        raise
+
+    title = "New price correction request"
+
+    message = (
+        f"{current_user.full_name or current_user.username} "
+        f"submitted a correction request for {entry.vegetable}."
+    )
+
+    # Save the in-app admin notification separately.
+    try:
+        notify_admins(
+            db,
+            title,
+            message,
+            "correction",
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception(
+            "Correction request %s was saved, but its in-app admin notification failed",
+            correction_request.id,
+        )
+
+    # Send the admin email immediately after saving the request.
+    email_body = f"""
+A new vegetable price correction request has been submitted.
+
+Request ID: {correction_request.id}
+Submitted by: {current_user.full_name or current_user.username}
+User email: {current_user.email}
+
+Vegetable: {entry.vegetable}
+Original price: {correction_request.original_price}
+Proposed price: {correction_request.proposed_price}
+
+Original notes: {correction_request.original_notes or "None"}
+Proposed notes: {correction_request.proposed_notes or "None"}
+
+Reason for correction:
+{correction_request.reason}
+
+Status: Pending admin review
+
+Please open the FreshFlow Admin Dashboard to review this request.
+"""
+
+    try:
+        send_admin_email(title, email_body)
+    except Exception as exc:
+        logger.exception(
+            "Correction request %s was saved, but admin email delivery failed",
+            correction_request.id,
+        )
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                f"Correction request #{correction_request.id} was saved, "
+                "but the admin email could not be delivered. "
+                "Please contact the administrator before submitting again."
+            ),
+        ) from exc
+
+    return _correction_payload(correction_request, entry)
 
 
 @router.get("/correction-requests/mine")

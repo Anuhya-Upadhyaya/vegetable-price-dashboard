@@ -40,7 +40,7 @@ export default function AdminCorrectionsPage() {
     try {
       const [me, list] = await Promise.all([getCurrentUser(), getCorrections()]);
       const role = typeof me?.role === "string" ? me.role.toLowerCase() : String(me?.role?.name || "").toLowerCase();
-      if (role !== "admin") { logout(); navigate("/", { replace: true }); return; }
+      if (role !== "admin") { logout(); navigate("/login", { replace: true }); return; }
       setAdmin(me);
       setItems(Array.isArray(list) ? list : []);
     } catch (e) {
@@ -82,7 +82,7 @@ export default function AdminCorrectionsPage() {
     }
   };
 
-  const signOut = () => { logout(); navigate("/", { replace: true }); };
+  const signOut = () => { logout(); navigate("/login", { replace: true }); };
 
   return (
     <div className="ac-page">

@@ -1,4 +1,4 @@
-from datetime import date,datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
@@ -8,11 +8,14 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_admin
 from app.db.session import get_db
 from app.models.user import User
+from app.models.user_session import UserSession
 from app.models.price_entry import PriceEntry
 from app.models.correction_request import PriceCorrectionRequest
 from app.schemas.price_entry import PriceEntryResponse, PriceCorrectionDecision
 from app.schemas.auth import AdminUserResponse
 from app.services.auth import approve_user, delete_user, get_all_users
+from app.services.notifications import notify_user
+
 
 
 router = APIRouter(prefix="/admin", tags=["Administration"])
@@ -285,6 +288,15 @@ def decide_correction_request(
     correction.reviewed_by = current_admin.id
     correction.reviewed_at = datetime.now(timezone.utc)
 
+    if correction.user_id:
+        notify_user(
+            db,
+            correction.user_id,
+            f"Price correction {payload.decision}",
+            f"Your correction request for {entry.vegetable} was {payload.decision} by the administrator."
+            + (f" Note: {correction.admin_note}" if correction.admin_note else ""),
+            "correction",
+        )
     db.commit()
     db.refresh(correction)
     db.refresh(entry)
@@ -301,4 +313,30 @@ def decide_correction_request(
             "last_updated_at": entry.last_updated_at,
             "is_updated": entry.is_updated,
         },
+    }
+
+
+@router.get("/users/online-count")
+def get_online_users_count(
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db),
+):
+    """Count distinct users with at least one recently active session."""
+
+    now = datetime.now(timezone.utc)
+    online_threshold = now - timedelta(minutes=2)
+
+    statement = (
+        select(func.count(func.distinct(UserSession.user_id)))
+        .where(
+            UserSession.revoked_at.is_(None),
+            UserSession.expires_at > now,
+            UserSession.last_seen_at >= online_threshold,
+        )
+    )
+
+    online_count = db.scalar(statement) or 0
+
+    return {
+        "online_users": online_count,
     }

@@ -170,7 +170,7 @@ export default function AdminVegetablesPage() {
 
       if (role !== "admin") {
         logout();
-        navigate("/", { replace: true });
+        navigate("/login", { replace: true });
         return;
       }
 
@@ -301,7 +301,7 @@ export default function AdminVegetablesPage() {
 
   const signOut = () => {
     logout();
-    navigate("/", { replace: true });
+    navigate("/login", { replace: true });
   };
 
   // Chart points should remain in chronological order.

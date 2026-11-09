@@ -1,3 +1,4 @@
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -11,93 +12,26 @@ const styles = `
   * { box-sizing: border-box; }
 
   .analytics-page {
+    width: 100%;
+    min-width: 0;
     min-height: 100vh;
+    margin: 0;
+    padding: 0;
     background: #f5f7f4;
     color: #243328;
     font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   }
 
-  .analytics-sidebar {
-    position: fixed;
-    inset: 0 auto 0 0;
-    width: 245px;
-    padding: 25px 17px;
-    display: flex;
-    flex-direction: column;
-    background: #173d2b;
-    color: white;
-    overflow-y: auto;
-  }
-
-  .analytics-brand {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 0 10px 24px;
-    border-bottom: 1px solid #ffffff25;
-  }
-
-  .analytics-logo {
-    width: 44px;
-    height: 44px;
-    display: grid;
-    place-items: center;
-    border-radius: 13px;
-    background: #e4efe2;
-    color: #173d2b;
-    font-weight: 800;
-  }
-
-  .analytics-brand h2 { margin: 0; font-size: 16px; }
-  .analytics-brand p { margin: 5px 0 0; font-size: 10px; letter-spacing: 1.2px; color: #c5d9ca; }
-
-  .analytics-nav-label {
-    margin: 27px 10px 12px;
-    color: #a9c1af;
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 1.5px;
-  }
-
-  .analytics-nav-button {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 13px 14px;
-    margin: 3px 0;
-    border: 0;
-    border-radius: 10px;
-    text-align: left;
-    color: #dce9df;
-    background: transparent;
-    font-size: 13px;
-    cursor: pointer;
-  }
-
-  .analytics-nav-button.active,
-  .analytics-nav-button:hover {
-    color: white;
-    background: #ffffff20;
-  }
-
-  .analytics-nav-icon { width: 20px; text-align: center; font-size: 17px; }
-  .analytics-sidebar-bottom { margin-top: auto; padding: 20px 8px 0; }
-
-  .analytics-logout {
-    width: 100%;
-    padding: 11px;
-    border: 1px solid #ffffff35;
-    border-radius: 9px;
-    background: transparent;
-    color: white;
-    cursor: pointer;
-  }
+  /* The sidebar is now supplied by AdminLayout.jsx.
+     Do not add another sidebar or reserve space for one here. */
 
   .analytics-content {
-    margin-left: 245px;
+    width: 100%;
+    max-width: 100%;
     min-width: 0;
+    margin: 0;
     padding: 30px 34px;
+    box-sizing: border-box;
   }
 
   .analytics-topbar {
@@ -108,9 +42,24 @@ const styles = `
     margin-bottom: 28px;
   }
 
-  .analytics-breadcrumb { color: #758176; font-size: 12px; margin-bottom: 7px; }
-  .analytics-title { margin: 0; color: #203d2b; font-size: clamp(24px, 3vw, 31px); }
-  .analytics-subtitle { margin: 8px 0 0; color: #7b857c; font-size: 13px; line-height: 1.6; }
+  .analytics-breadcrumb {
+    color: #758176;
+    font-size: 12px;
+    margin-bottom: 7px;
+  }
+
+  .analytics-title {
+    margin: 0;
+    color: #203d2b;
+    font-size: clamp(24px, 3vw, 31px);
+  }
+
+  .analytics-subtitle {
+    margin: 8px 0 0;
+    color: #7b857c;
+    font-size: 13px;
+    line-height: 1.6;
+  }
 
   .analytics-profile {
     padding: 10px 13px;
@@ -131,7 +80,12 @@ const styles = `
   }
 
   .analytics-filter-panel { padding: 21px; }
-  .analytics-filter-title { margin: 0 0 15px; color: #233c2b; font-size: 15px; }
+
+  .analytics-filter-title {
+    margin: 0 0 15px;
+    color: #233c2b;
+    font-size: 15px;
+  }
 
   .analytics-filter-grid {
     display: grid;
@@ -177,7 +131,10 @@ const styles = `
     color: #315a3b;
   }
 
-  .analytics-button:disabled { opacity: .55; cursor: not-allowed; }
+  .analytics-button:disabled {
+    opacity: .55;
+    cursor: not-allowed;
+  }
 
   .analytics-actions {
     display: flex;
@@ -201,9 +158,24 @@ const styles = `
     background: white;
   }
 
-  .analytics-stat-label { color: #758075; font-size: 12px; }
-  .analytics-stat-number { margin: 17px 0 6px; color: #213c2b; font-size: clamp(22px, 2.5vw, 30px); font-weight: 750; overflow-wrap: anywhere; }
-  .analytics-stat-caption { color: #89938a; font-size: 10px; line-height: 1.5; }
+  .analytics-stat-label {
+    color: #758075;
+    font-size: 12px;
+  }
+
+  .analytics-stat-number {
+    margin: 17px 0 6px;
+    color: #213c2b;
+    font-size: clamp(22px, 2.5vw, 30px);
+    font-weight: 750;
+    overflow-wrap: anywhere;
+  }
+
+  .analytics-stat-caption {
+    color: #89938a;
+    font-size: 10px;
+    line-height: 1.5;
+  }
 
   .analytics-panel-header {
     display: flex;
@@ -215,14 +187,59 @@ const styles = `
     border-bottom: 1px solid #edf0eb;
   }
 
-  .analytics-panel-header h2 { margin: 0; color: #233c2b; font-size: 16px; }
-  .analytics-panel-header p { margin: 6px 0 0; color: #828c82; font-size: 12px; line-height: 1.5; }
+  .analytics-panel-header h2 {
+    margin: 0;
+    color: #233c2b;
+    font-size: 16px;
+  }
 
-  .analytics-table-wrap { overflow-x: auto; }
-  .analytics-table { width: 100%; border-collapse: collapse; text-align: left; white-space: nowrap; }
-  .analytics-table th { padding: 13px 17px; color: #7b877b; background: #fafbf9; font-size: 10px; letter-spacing: .6px; }
-  .analytics-table td { padding: 15px 17px; border-top: 1px solid #f0f2ee; color: #4b594c; font-size: 12px; }
-  .analytics-table tbody tr:hover { background: #fcfdfb; }
+  .analytics-panel-header p {
+    margin: 6px 0 0;
+    color: #828c82;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  .analytics-table-wrap {
+    width: 100%;
+    max-height: 420px;
+    overflow: auto;
+    position: relative;
+    scrollbar-width: thin;
+    scrollbar-color: #9bb5a0 #f3f6f1;
+  }
+
+  .analytics-table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  .analytics-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #fafbf9;
+  }
+
+  .analytics-table th {
+    padding: 13px 17px;
+    color: #7b877b;
+    font-size: 10px;
+    letter-spacing: .6px;
+  }
+
+  .analytics-table td {
+    padding: 15px 17px;
+    border-top: 1px solid #f0f2ee;
+    color: #4b594c;
+    font-size: 12px;
+  }
+
+  .analytics-table tbody tr:hover {
+    background: #fcfdfb;
+  }
 
   .analytics-table-empty {
     padding: 35px 20px;
@@ -240,17 +257,65 @@ const styles = `
     line-height: 1.6;
   }
 
-  .analytics-error { background: #fff0ee; color: #a53d32; border: 1px solid #f4d2cd; }
-  .analytics-notice { background: #edf7ed; color: #28633b; border: 1px solid #d4ead5; }
+  .analytics-error {
+    background: #fff0ee;
+    color: #a53d32;
+    border: 1px solid #f4d2cd;
+  }
+
+  .analytics-notice {
+    background: #edf7ed;
+    color: #28633b;
+    border: 1px solid #d4ead5;
+  }
 
   .analytics-chart-wrap { padding: 20px; }
-  .analytics-chart-legend { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 12px; font-size: 11px; color: #526253; }
-  .analytics-legend-item { display: inline-flex; align-items: center; gap: 7px; }
-  .analytics-legend-dot { width: 9px; height: 9px; border-radius: 50%; background: #3c8050; }
-  .analytics-chart-svg { display: block; width: 100%; height: auto; min-height: 210px; }
-  .analytics-chart-note { margin-top: 12px; color: #7b857c; font-size: 11px; line-height: 1.6; }
 
-  .analytics-footer { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-top: 20px; color: #899389; font-size: 11px; }
+  .analytics-chart-legend {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+    font-size: 11px;
+    color: #526253;
+  }
+
+  .analytics-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+  }
+
+  .analytics-legend-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #3c8050;
+  }
+
+  .analytics-chart-svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    min-height: 210px;
+  }
+
+  .analytics-chart-note {
+    margin-top: 12px;
+    color: #7b857c;
+    font-size: 11px;
+    line-height: 1.6;
+  }
+
+  .analytics-footer {
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 20px;
+    color: #899389;
+    font-size: 11px;
+  }
 
   @media (max-width: 1100px) {
     .analytics-content { padding: 25px 22px; }
@@ -259,20 +324,14 @@ const styles = `
   }
 
   @media (max-width: 720px) {
-    .analytics-sidebar {
-      position: relative;
-      inset: auto;
-      width: 100%;
-      padding: 16px;
+    .analytics-content { padding: 22px 14px; }
+
+    .analytics-topbar {
+      align-items: flex-start;
+      flex-direction: column;
+      margin-bottom: 23px;
     }
 
-    .analytics-brand { padding-bottom: 15px; }
-    .analytics-nav-label { margin-top: 17px; }
-    .analytics-sidebar .analytics-nav-button { width: auto; display: inline-flex; margin-right: 4px; }
-    .analytics-sidebar-bottom { padding-top: 12px; }
-    .analytics-logout { margin-top: 8px; }
-    .analytics-content { margin-left: 0; padding: 22px 14px; }
-    .analytics-topbar { align-items: flex-start; flex-direction: column; margin-bottom: 23px; }
     .analytics-filter-grid { grid-template-columns: 1fr; }
     .analytics-stat-grid { gap: 10px; }
     .analytics-stat-card { padding: 15px; }
@@ -595,7 +654,7 @@ function AdminAnalyticsPage() {
         ).toLowerCase() !== "admin"
       ) {
         logout();
-        navigate("/", { replace: true });
+        navigate("/login", { replace: true });
         return;
       }
 
@@ -635,7 +694,7 @@ function AdminAnalyticsPage() {
         lower.includes("credentials")
       ) {
         logout();
-        navigate("/", { replace: true });
+        navigate("/login", { replace: true });
         return;
       }
 
@@ -659,11 +718,6 @@ function AdminAnalyticsPage() {
 
   const chartObservations = chartComparison?.observations || [];
 
-  const handleLogout = () => {
-    logout();
-    navigate("/", { replace: true });
-  };
-
   const resetFilters = () => {
     setDateMode("range");
     setSelectedDate("");
@@ -684,63 +738,7 @@ function AdminAnalyticsPage() {
       <style>{styles}</style>
 
       <div className="analytics-page">
-        <aside className="analytics-sidebar">
-          <div className="analytics-brand">
-            <div className="analytics-logo">VG</div>
-            <div>
-              <h2>Veegronex</h2>
-              <p>FRESHFLOW PORTAL</p>
-            </div>
-          </div>
-
-          <div className="analytics-nav-label">WORKSPACE</div>
-
-          <button
-            type="button"
-            className="analytics-nav-button"
-            onClick={() => navigate("/admin")}
-          >
-            <span className="analytics-nav-icon">♙</span>
-            User management
-          </button>
-
-          <button
-            type="button"
-            className="analytics-nav-button"
-            onClick={() => navigate("/admin/vegetables")}
-          >
-            <span className="analytics-nav-icon">♧</span>
-            Vegetable management
-          </button>
-
-          <button
-            type="button"
-            className="analytics-nav-button"
-            onClick={() => navigate("/admin/corrections")}
-          >
-            <span className="analytics-nav-icon">↺</span>
-            Price corrections
-          </button>
-
-          <button
-            type="button"
-            className="analytics-nav-button active"
-            aria-current="page"
-          >
-            <span className="analytics-nav-icon">▥</span>
-            Price analytics
-          </button>
-
-          <div className="analytics-sidebar-bottom">
-            <button
-              type="button"
-              className="analytics-logout"
-              onClick={handleLogout}
-            >
-              ↪ &nbsp; Sign out
-            </button>
-          </div>
-        </aside>
+        {/* Shared sidebar is rendered by AdminLayout.jsx */}
 
         <main className="analytics-content">
           <header className="analytics-topbar">
@@ -934,9 +932,7 @@ function AdminAnalyticsPage() {
             <header className="analytics-panel-header">
               <div>
                 <h2>Price trend</h2>
-                <p>
-                  Review recorded prices for one vegetable at a time.
-                </p>
+                <p>Review recorded prices for one vegetable at a time.</p>
               </div>
 
               <div className="analytics-field">
@@ -976,7 +972,13 @@ function AdminAnalyticsPage() {
                   observations={chartObservations}
                   vegetable={chartComparison.vegetable}
                 />
-                <div style={{ padding: "0 20px 20px", color: "#718072", fontSize: 12 }}>
+                <div
+                  style={{
+                    padding: "0 20px 20px",
+                    color: "#718072",
+                    fontSize: 12,
+                  }}
+                >
                   Unit: <strong>{chartComparison.unit}</strong>
                   {" · "}Average:{" "}
                   <strong>{moneyFormat(chartComparison.average_price)}</strong>
@@ -1031,9 +1033,7 @@ function AdminAnalyticsPage() {
                   <tbody>
                     {data.comparisons.map((item) => (
                       <tr key={`${item.vegetable}-${item.unit}`}>
-                        <td>
-                          <strong>{item.vegetable}</strong>
-                        </td>
+                        <td><strong>{item.vegetable}</strong></td>
                         <td>{item.unit}</td>
                         <td>{numberFormat(item.entry_count)}</td>
                         <td>{moneyFormat(item.average_price)}</td>

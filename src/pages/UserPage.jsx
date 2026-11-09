@@ -1,6 +1,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+
 import {
   createPriceEntry,
   createPriceCorrectionRequest,
@@ -9,8 +10,13 @@ import {
   getCurrentUser,
   getMyPriceEntries,
   getMyPriceTrends,
+  createCustomerSubmission,
   logout,
 } from "../services/api";
+
+// ============================================================
+// FORMATTING HELPERS
+// ============================================================
 
 const formatTimestamp = (value) =>
   value
@@ -33,6 +39,28 @@ const formatDate = (value) =>
         }
       )
     : "—";
+
+// ============================================================
+// EMPTY CUSTOMER FORM
+// ============================================================
+
+const emptyCustomerProfile = {
+  contact_name: "",
+  organization: "",
+  email: "",
+  alternate_phone: "",
+  street_address: "",
+  locality: "",
+  city: "",
+  state: "",
+  country: "India",
+  latitude: "",
+  longitude: "",
+};
+
+// ============================================================
+// PAGE STYLING
+// ============================================================
 
 const css = `
   * { box-sizing: border-box; }
@@ -180,6 +208,12 @@ const css = `
     box-shadow: 0 0 0 3px #57966a1a;
   }
 
+  .entry-field input:read-only {
+    background: #f0f4ef;
+    color: #526b57;
+    cursor: default;
+  }
+
   .entry-units { display: flex; gap: 10px; }
 
   .entry-unit {
@@ -229,7 +263,33 @@ const css = `
   .entry-message.success { background: #eaf7ed; color: #216337; }
   .entry-message.error { background: #fff0ee; color: #a0372b; }
 
-  .entry-list-wrap { overflow-x: auto; }
+  .entry-list-wrap {
+    max-height: 360px;
+    overflow-y: auto;
+    overflow-x: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: #9bb5a0 #f3f6f1;
+  }
+
+  .entry-list-wrap::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .entry-list-wrap::-webkit-scrollbar-track {
+    background: #f3f6f1;
+    border-radius: 8px;
+  }
+
+  .entry-list-wrap::-webkit-scrollbar-thumb {
+    background: #9bb5a0;
+    border-radius: 8px;
+  }
+
+  .entry-list-wrap::-webkit-scrollbar-thumb:hover {
+    background: #64856b;
+  }
 
   .entry-table {
     width: 100%;
@@ -237,10 +297,16 @@ const css = `
     min-width: 480px;
   }
 
+  .entry-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #f8faf7;
+  }
+
   .entry-table th {
     text-align: left;
     padding: 13px 16px;
-    background: #f8faf7;
     color: #829082;
     font-size: 10px;
     letter-spacing: .8px;
@@ -309,12 +375,29 @@ const css = `
   .activity-chart svg { width: 100%; height: 240px; overflow: visible; }
   .activity-legend { color: #718073; font-size: 12px; line-height: 1.6; }
 
+  .customer-location-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .customer-location-note {
+    color: #718073;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
   @media (max-width: 800px) {
     .entry-page { padding: 18px 13px; }
     .entry-grid { grid-template-columns: 1fr; }
     .entry-topbar { align-items: flex-start; }
   }
 `;
+
+// ============================================================
+// PRICE TREND CHART
+// ============================================================
 
 function PriceTrendChart({ points }) {
   const width = 760;
@@ -335,6 +418,7 @@ function PriceTrendChart({ points }) {
   const prices = visiblePoints.map((point) =>
     Number(point.average_price)
   );
+
   const minPrice = Math.min(...prices);
   const maxPrice = Math.max(...prices);
   const priceRange = maxPrice - minPrice || 1;
@@ -474,8 +558,16 @@ function PriceTrendChart({ points }) {
   );
 }
 
+// ============================================================
+// USER PAGE
+// ============================================================
+
 function UserPage() {
   const navigate = useNavigate();
+
+  // ----------------------------------------------------------
+  // USER AND PRICE ENTRY STATE
+  // ----------------------------------------------------------
 
   const [user, setUser] = useState(null);
   const [entries, setEntries] = useState([]);
@@ -492,23 +584,210 @@ function UserPage() {
     notes: "",
   });
 
+  // ----------------------------------------------------------
+  // CORRECTION REQUEST STATE
+  // ----------------------------------------------------------
+
   const [correctionRequests, setCorrectionRequests] = useState([]);
   const [selectedCorrectionEntry, setSelectedCorrectionEntry] =
     useState(null);
+
   const [correctionForm, setCorrectionForm] = useState({
     proposed_price: "",
     proposed_notes: "",
     reason: "",
   });
+
   const [savingCorrection, setSavingCorrection] = useState(false);
   const [correctionMessage, setCorrectionMessage] = useState("");
   const [correctionError, setCorrectionError] = useState("");
 
+  // ----------------------------------------------------------
+  // PRICE TREND STATE
+  // ----------------------------------------------------------
+
   const [selectedTrendVegetable, setSelectedTrendVegetable] =
     useState("");
+
   const [trendPoints, setTrendPoints] = useState([]);
   const [loadingTrends, setLoadingTrends] = useState(false);
   const [trendError, setTrendError] = useState("");
+
+  // ----------------------------------------------------------
+  // CUSTOMER SUBMISSION STATE
+  // ----------------------------------------------------------
+
+  const [customerProfile, setCustomerProfile] = useState(
+    emptyCustomerProfile
+  );
+
+  const [customerSaving, setCustomerSaving] = useState(false);
+  const [customerMessage, setCustomerMessage] = useState("");
+  const [customerError, setCustomerError] = useState("");
+  const [locationMessage, setLocationMessage] = useState("");
+
+  // ----------------------------------------------------------
+  // CUSTOMER FORM FIELD HANDLER
+  // ----------------------------------------------------------
+
+  const updateCustomerField = (key, value) => {
+    setCustomerProfile((current) => ({
+      ...current,
+      [key]: value,
+    }));
+  };
+
+  // ----------------------------------------------------------
+  // GPS LOCATION CAPTURE
+  // ----------------------------------------------------------
+
+  const captureCustomerLocation = () => {
+    setLocationMessage("Detecting your current location...");
+    setCustomerError("");
+    setCustomerMessage("");
+
+    if (!navigator.geolocation) {
+      setLocationMessage(
+        "Location is not supported by this browser."
+      );
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      async ({ coords }) => {
+        const latitude = coords.latitude.toFixed(7);
+        const longitude = coords.longitude.toFixed(7);
+
+        setCustomerProfile((current) => ({
+          ...current,
+          latitude,
+          longitude,
+        }));
+
+        setLocationMessage("GPS captured. Finding your address...");
+
+        try {
+          const response = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}`
+          );
+
+          if (!response.ok) {
+            throw new Error("Address lookup failed.");
+          }
+
+          const result = await response.json();
+          const address = result.address || {};
+
+          setCustomerProfile((current) => ({
+            ...current,
+            latitude,
+            longitude,
+            street_address:
+              result.display_name || current.street_address,
+            locality:
+              address.suburb ||
+              address.neighbourhood ||
+              address.village ||
+              current.locality,
+            city:
+              address.city ||
+              address.town ||
+              address.village ||
+              address.municipality ||
+              address.county ||
+              current.city,
+            state: address.state || current.state,
+            country: address.country || current.country,
+          }));
+
+          setLocationMessage(
+            "Location updated. Review the address and submit your customer details."
+          );
+        } catch {
+          setLocationMessage(
+            "GPS coordinates captured, but the address could not be retrieved. You can enter the address manually."
+          );
+        }
+      },
+      (geoError) => {
+        setLocationMessage(
+          geoError.code === 1
+            ? "Location permission denied. Please allow location access."
+            : "Unable to detect location. Please try again."
+        );
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 60000,
+      }
+    );
+  };
+
+  // ----------------------------------------------------------
+  // CREATE A NEW CUSTOMER SUBMISSION
+  // ----------------------------------------------------------
+
+  const submitCustomerProfile = async (event) => {
+    event.preventDefault();
+
+    setCustomerSaving(true);
+    setCustomerError("");
+    setCustomerMessage("");
+
+    try {
+      const payload = {
+        contact_name: customerProfile.contact_name.trim(),
+        organization: customerProfile.organization.trim(),
+        alternate_phone: customerProfile.alternate_phone.trim(),
+
+        email: customerProfile.email.trim() || null,
+
+        country: customerProfile.country.trim() || "India",
+        state: customerProfile.state.trim() || null,
+        city: customerProfile.city.trim(),
+        locality: customerProfile.locality.trim() || null,
+        street_address: customerProfile.street_address.trim() || null,
+
+        latitude:
+          customerProfile.latitude === ""
+            ? null
+            : Number(customerProfile.latitude),
+
+        longitude:
+          customerProfile.longitude === ""
+            ? null
+            : Number(customerProfile.longitude),
+      };
+
+      // IMPORTANT:
+      // POST /customers creates a NEW record.
+      // It does not overwrite an existing submission.
+
+      await createCustomerSubmission(payload);
+
+      // Clear the form only after the server confirms success.
+      setCustomerProfile({ ...emptyCustomerProfile });
+
+      setLocationMessage("");
+
+      setCustomerMessage(
+        "Customer information submitted successfully! You can submit another customer record whenever needed."
+      );
+    } catch (err) {
+      // Keep all entered information if submission fails.
+      setCustomerError(
+        err?.message ||
+          "Unable to submit customer information. Please try again."
+      );
+    } finally {
+      setCustomerSaving(false);
+    }
+  };
+
+  // ----------------------------------------------------------
+  // LOAD USER, PRICE HISTORY, VEGETABLES AND CORRECTIONS
+  // ----------------------------------------------------------
 
   const loadEntries = useCallback(async () => {
     setLoadingEntries(true);
@@ -563,7 +842,7 @@ function UserPage() {
         /token|unauthorized|authentication|credentials/i.test(message)
       ) {
         logout();
-        navigate("/", { replace: true });
+        navigate("/login", { replace: true });
       }
     } finally {
       setLoadingEntries(false);
@@ -574,6 +853,10 @@ function UserPage() {
     loadEntries();
   }, [loadEntries]);
 
+  // ----------------------------------------------------------
+  // SORT PRICE ENTRIES
+  // ----------------------------------------------------------
+
   const sortedEntries = useMemo(
     () =>
       [...entries].sort(
@@ -581,6 +864,10 @@ function UserPage() {
       ),
     [entries]
   );
+
+  // ----------------------------------------------------------
+  // PRICE ENTRY FIELD HANDLER
+  // ----------------------------------------------------------
 
   const updateField = (key, value) =>
     setForm((current) => {
@@ -595,6 +882,10 @@ function UserPage() {
 
       return { ...current, [key]: value };
     });
+
+  // ----------------------------------------------------------
+  // LOAD PRICE TRENDS
+  // ----------------------------------------------------------
 
   useEffect(() => {
     if (!selectedTrendVegetable) {
@@ -621,6 +912,7 @@ function UserPage() {
           const sorted = [...result].sort((a, b) =>
             String(a.date).localeCompare(String(b.date))
           );
+
           setTrendPoints(sorted);
         }
       } catch (err) {
@@ -644,8 +936,13 @@ function UserPage() {
     };
   }, [selectedTrendVegetable, entries]);
 
+  // ----------------------------------------------------------
+  // SUBMIT VEGETABLE PRICE ENTRY
+  // ----------------------------------------------------------
+
   const handleSubmit = async (event) => {
     event.preventDefault();
+
     setError("");
     setSuccess("");
 
@@ -701,6 +998,7 @@ function UserPage() {
           "Entry was saved, but history refresh failed:",
           refreshError
         );
+
         setError(
           "Your entry was saved, but the full history could not be refreshed. Please reload the page."
         );
@@ -714,16 +1012,26 @@ function UserPage() {
     }
   };
 
+  // ----------------------------------------------------------
+  // OPEN PRICE CORRECTION FORM
+  // ----------------------------------------------------------
+
   const openCorrectionForm = (entry) => {
     setSelectedCorrectionEntry(entry);
+
     setCorrectionForm({
       proposed_price: String(entry.price),
       proposed_notes: entry.notes || "",
       reason: "",
     });
+
     setCorrectionError("");
     setCorrectionMessage("");
   };
+
+  // ----------------------------------------------------------
+  // SUBMIT PRICE CORRECTION REQUEST
+  // ----------------------------------------------------------
 
   const submitCorrectionRequest = async (event) => {
     event.preventDefault();
@@ -765,6 +1073,7 @@ function UserPage() {
       ]);
 
       setSelectedCorrectionEntry(null);
+
       setCorrectionMessage(
         "Correction request submitted. The original entry will remain unchanged until an administrator reviews it."
       );
@@ -776,6 +1085,10 @@ function UserPage() {
       setSavingCorrection(false);
     }
   };
+
+  // ----------------------------------------------------------
+  // FIND LATEST CORRECTION REQUEST FOR EACH ENTRY
+  // ----------------------------------------------------------
 
   const latestCorrectionByEntry = useMemo(() => {
     const result = new Map();
@@ -794,10 +1107,33 @@ function UserPage() {
     return result;
   }, [correctionRequests]);
 
+  // ----------------------------------------------------------
+  // LOGOUT
+  // ----------------------------------------------------------
+
   const handleLogout = () => {
     logout();
-    navigate("/", { replace: true });
+    navigate("/login", { replace: true });
   };
+
+  // ----------------------------------------------------------
+  // READABLE CUSTOMER LOCATION
+  // ----------------------------------------------------------
+
+  const readableLocation =
+    customerProfile.street_address ||
+    [
+      customerProfile.locality,
+      customerProfile.city,
+      customerProfile.state,
+      customerProfile.country,
+    ]
+      .filter(Boolean)
+      .join(", ");
+
+  // ==========================================================
+  // PAGE UI
+  // ==========================================================
 
   return (
     <>
@@ -805,13 +1141,20 @@ function UserPage() {
 
       <main className="entry-page">
         <div className="entry-shell">
+
+          {/* ------------------------------------------------ */}
+          {/* HEADER */}
+          {/* ------------------------------------------------ */}
+
           <header className="entry-topbar">
             <div className="entry-brand">
               <div className="entry-logo">VG</div>
+
               <div>
                 <div className="entry-brand-name">
                   VEEGRONEX GLOBAL TRADE
                 </div>
+
                 <div className="entry-brand-sub">
                   FreshFlow · Price Entry Portal
                 </div>
@@ -827,13 +1170,19 @@ function UserPage() {
             </button>
           </header>
 
+          {/* ------------------------------------------------ */}
+          {/* PAGE HEADING */}
+          {/* ------------------------------------------------ */}
+
           <section className="entry-heading">
             <div className="entry-eyebrow">
               {user
                 ? `Welcome, ${user.full_name || user.username}`
                 : "User workspace"}
             </div>
+
             <h1>Daily Vegetable Price Entry</h1>
+
             <p>
               Record one vegetable price at a time. Your entries are saved
               to your account and can be reviewed by the administrator.
@@ -841,10 +1190,17 @@ function UserPage() {
           </section>
 
           <div className="entry-grid">
+
+            {/* ============================================== */}
+            {/* PRICE ENTRY FORM */}
+            {/* ============================================== */}
+
             <section className="entry-card">
               <div className="entry-card-head">
                 <h2>Add a price entry</h2>
-                <p>Complete the fields below and save your daily price.</p>
+                <p>
+                  Complete the fields below and save your daily price.
+                </p>
               </div>
 
               <form className="entry-form" onSubmit={handleSubmit}>
@@ -862,6 +1218,7 @@ function UserPage() {
 
                 <div className="entry-field">
                   <label htmlFor="vegetable">Vegetable</label>
+
                   <select
                     id="vegetable"
                     value={form.vegetable}
@@ -888,6 +1245,7 @@ function UserPage() {
 
                 <div className="entry-field">
                   <label htmlFor="price">Price (₹ per unit)</label>
+
                   <input
                     id="price"
                     type="number"
@@ -904,6 +1262,7 @@ function UserPage() {
 
                 <div className="entry-field">
                   <label>Price unit</label>
+
                   <div className="entry-units">
                     <label className="entry-unit">
                       <input
@@ -933,6 +1292,7 @@ function UserPage() {
 
                 <div className="entry-field">
                   <label htmlFor="notes">Notes (optional)</label>
+
                   <textarea
                     id="notes"
                     rows="3"
@@ -960,12 +1320,17 @@ function UserPage() {
               </div>
             </section>
 
+            {/* ============================================== */}
+            {/* PREVIOUS PRICE ENTRIES */}
+            {/* ============================================== */}
+
             <section className="entry-card">
               <div className="entry-card-head">
                 <h2>
                   Your previous entries{" "}
                   <span className="entry-count">{entries.length}</span>
                 </h2>
+
                 <p>Your saved prices, newest submissions first.</p>
               </div>
 
@@ -1005,13 +1370,16 @@ function UserPage() {
                             <td className="entry-veg">
                               {entry.vegetable}
                             </td>
+
                             <td className="entry-price">
                               {money(entry.price)} / {entry.unit}
                             </td>
-                            <td className="entry-time">
+
+                            <td>
                               <span className="entry-original-time">
                                 {formatTimestamp(entry.created_at)}
                               </span>
+
                               {entry.is_updated &&
                                 entry.last_updated_at && (
                                   <span className="entry-updated-time">
@@ -1020,6 +1388,7 @@ function UserPage() {
                                   </span>
                                 )}
                             </td>
+
                             <td>
                               {entry.is_updated ? (
                                 <span className="entry-updated-badge">
@@ -1031,7 +1400,9 @@ function UserPage() {
                                 </span>
                               )}
                             </td>
+
                             <td>{entry.notes || "—"}</td>
+
                             <td>
                               {request?.status === "pending" ? (
                                 <span
@@ -1064,6 +1435,10 @@ function UserPage() {
             </section>
           </div>
 
+          {/* ============================================== */}
+          {/* CORRECTION MESSAGES */}
+          {/* ============================================== */}
+
           {correctionMessage && (
             <div
               className="entry-message success"
@@ -1074,17 +1449,27 @@ function UserPage() {
             </div>
           )}
 
+          {correctionError && (
+            <div
+              className="entry-message error"
+              role="alert"
+              style={{ marginTop: 16 }}
+            >
+              {correctionError}
+            </div>
+          )}
+
+          {/* ============================================== */}
+          {/* CORRECTION REQUEST FORM */}
+          {/* ============================================== */}
+
           {selectedCorrectionEntry && (
             <section className="entry-card" style={{ marginTop: 20 }}>
               <div className="entry-card-head">
-                <h2>
-                  Request a correction —{" "}
-                  {selectedCorrectionEntry.vegetable}
-                </h2>
+                <h2>Request a price correction</h2>
                 <p>
-                  Original entry: {money(selectedCorrectionEntry.price)} /{" "}
-                  {selectedCorrectionEntry.unit}. The original will not
-                  change unless an administrator approves your request.
+                  Submit the corrected price and explain why the original
+                  entry needs to be changed.
                 </p>
               </div>
 
@@ -1092,18 +1477,29 @@ function UserPage() {
                 className="entry-form"
                 onSubmit={submitCorrectionRequest}
               >
-                {correctionError && (
-                  <div className="entry-message error" role="alert">
-                    {correctionError}
-                  </div>
-                )}
+                <div className="entry-field">
+                  <label>Vegetable</label>
+                  <input
+                    value={selectedCorrectionEntry.vegetable}
+                    readOnly
+                  />
+                </div>
 
                 <div className="entry-field">
-                  <label htmlFor="correction-price">
-                    Correct price (₹ per {selectedCorrectionEntry.unit})
-                  </label>
+                  <label>Original price</label>
                   <input
-                    id="correction-price"
+                    value={`${money(selectedCorrectionEntry.price)} / ${selectedCorrectionEntry.unit}`}
+                    readOnly
+                  />
+                </div>
+
+                <div className="entry-field">
+                  <label htmlFor="proposed-price">
+                    Proposed price (₹)
+                  </label>
+
+                  <input
+                    id="proposed-price"
                     type="number"
                     min="0.01"
                     step="0.01"
@@ -1119,13 +1515,13 @@ function UserPage() {
                 </div>
 
                 <div className="entry-field">
-                  <label htmlFor="correction-notes">
-                    Correct notes (optional)
+                  <label htmlFor="proposed-notes">
+                    Proposed notes (optional)
                   </label>
+
                   <textarea
-                    id="correction-notes"
-                    rows="3"
-                    maxLength="2000"
+                    id="proposed-notes"
+                    rows="2"
                     value={correctionForm.proposed_notes}
                     onChange={(event) =>
                       setCorrectionForm((current) => ({
@@ -1138,14 +1534,14 @@ function UserPage() {
 
                 <div className="entry-field">
                   <label htmlFor="correction-reason">
-                    Reason for correction (required)
+                    Reason for correction
                   </label>
+
                   <textarea
                     id="correction-reason"
                     rows="3"
-                    minLength="5"
-                    maxLength="2000"
                     required
+                    minLength="5"
                     value={correctionForm.reason}
                     onChange={(event) =>
                       setCorrectionForm((current) => ({
@@ -1153,7 +1549,7 @@ function UserPage() {
                         reason: event.target.value,
                       }))
                     }
-                    placeholder="Explain what was incorrect and why this change is needed."
+                    placeholder="Explain why this price needs correction"
                   />
                 </div>
 
@@ -1172,7 +1568,6 @@ function UserPage() {
                     className="entry-logout"
                     type="button"
                     onClick={() => setSelectedCorrectionEntry(null)}
-                    disabled={savingCorrection}
                   >
                     Cancel
                   </button>
@@ -1180,6 +1575,10 @@ function UserPage() {
               </form>
             </section>
           )}
+
+          {/* ============================================== */}
+          {/* CORRECTION REQUEST HISTORY */}
+          {/* ============================================== */}
 
           {correctionRequests.length > 0 && (
             <section className="entry-card" style={{ marginTop: 20 }}>
@@ -1205,16 +1604,20 @@ function UserPage() {
                       <th>ADMIN NOTE</th>
                     </tr>
                   </thead>
+
                   <tbody>
                     {correctionRequests.map((request) => (
                       <tr key={request.id}>
                         <td>{request.vegetable}</td>
+
                         <td>
                           {money(request.original_price)} / {request.unit}
                         </td>
+
                         <td>
                           {money(request.proposed_price)} / {request.unit}
                         </td>
+
                         <td
                           style={{
                             fontWeight: 800,
@@ -1223,6 +1626,7 @@ function UserPage() {
                         >
                           {request.status}
                         </td>
+
                         <td>{request.admin_note || "—"}</td>
                       </tr>
                     ))}
@@ -1231,6 +1635,10 @@ function UserPage() {
               </div>
             </section>
           )}
+
+          {/* ============================================== */}
+          {/* VEGETABLE PRICE TRENDS */}
+          {/* ============================================== */}
 
           <section className="entry-card" style={{ marginTop: 20 }}>
             <div className="entry-card-head">
@@ -1246,6 +1654,7 @@ function UserPage() {
                 <label htmlFor="trend-vegetable">
                   Select vegetable
                 </label>
+
                 <select
                   id="trend-vegetable"
                   value={selectedTrendVegetable}
@@ -1277,6 +1686,270 @@ function UserPage() {
               )}
             </div>
           </section>
+
+          {/* ============================================== */}
+          {/* CUSTOMER INFORMATION FORM */}
+          {/* ============================================== */}
+
+          <section className="entry-card" style={{ marginTop: 20 }}>
+            <div className="entry-card-head">
+              <h2>Customer Details</h2>
+
+              <p>
+                Enter customer contact and location information.
+                Every submission is saved as a separate record.
+                Previous submissions will not be replaced.
+              </p>
+            </div>
+
+            <form
+              className="entry-form"
+              onSubmit={submitCustomerProfile}
+            >
+              {customerError && (
+                <div className="entry-message error" role="alert">
+                  {customerError}
+                </div>
+              )}
+
+              {customerMessage && (
+                <div className="entry-message success" role="status">
+                  {customerMessage}
+                </div>
+              )}
+
+              {/* Customer name */}
+
+              <div className="entry-field">
+                <label htmlFor="customer-name">
+                  Customer name *
+                </label>
+
+                <input
+                  id="customer-name"
+                  type="text"
+                  required
+                  minLength={2}
+                  maxLength={150}
+                  value={customerProfile.contact_name}
+                  onChange={(event) =>
+                    updateCustomerField(
+                      "contact_name",
+                      event.target.value
+                    )
+                  }
+                  placeholder="Enter full name"
+                />
+              </div>
+
+              {/* Company or shop */}
+
+              <div className="entry-field">
+                <label htmlFor="customer-company">
+                  Company / Shop name *
+                </label>
+
+                <input
+                  id="customer-company"
+                  type="text"
+                  required
+                  minLength={2}
+                  maxLength={180}
+                  value={customerProfile.organization}
+                  onChange={(event) =>
+                    updateCustomerField(
+                      "organization",
+                      event.target.value
+                    )
+                  }
+                  placeholder="Enter company or shop name"
+                />
+              </div>
+
+              {/* Alternate mobile number */}
+
+              <div className="entry-field">
+                <label htmlFor="customer-mobile">
+                  Alternate mobile number *
+                </label>
+
+                <input
+                  id="customer-mobile"
+                  type="tel"
+                  required
+                  minLength={7}
+                  maxLength={20}
+                  value={customerProfile.alternate_phone}
+                  onChange={(event) =>
+                    updateCustomerField(
+                      "alternate_phone",
+                      event.target.value
+                    )
+                  }
+                  placeholder="Enter alternate mobile number"
+                />
+              </div>
+
+              {/* Customer email */}
+
+              <div className="entry-field">
+                <label htmlFor="customer-email">
+                  Customer email address
+                </label>
+
+                <input
+                  id="customer-email"
+                  type="email"
+                  maxLength={254}
+                  value={customerProfile.email}
+                  onChange={(event) =>
+                    updateCustomerField("email", event.target.value)
+                  }
+                  placeholder="Enter customer email address (optional)"
+                />
+              </div>
+
+              {/* Country */}
+
+              <div className="entry-field">
+                <label htmlFor="customer-country">
+                  Country *
+                </label>
+
+                <input
+                  id="customer-country"
+                  type="text"
+                  required
+                  maxLength={80}
+                  value={customerProfile.country}
+                  onChange={(event) =>
+                    updateCustomerField("country", event.target.value)
+                  }
+                />
+              </div>
+
+              {/* State */}
+
+              <div className="entry-field">
+                <label htmlFor="customer-state">State</label>
+
+                <input
+                  id="customer-state"
+                  type="text"
+                  maxLength={100}
+                  value={customerProfile.state}
+                  onChange={(event) =>
+                    updateCustomerField("state", event.target.value)
+                  }
+                  placeholder="Enter state"
+                />
+              </div>
+
+              {/* City */}
+
+              <div className="entry-field">
+                <label htmlFor="customer-city">City *</label>
+
+                <input
+                  id="customer-city"
+                  type="text"
+                  required
+                  minLength={2}
+                  maxLength={100}
+                  value={customerProfile.city}
+                  onChange={(event) =>
+                    updateCustomerField("city", event.target.value)
+                  }
+                  placeholder="Enter city"
+                />
+              </div>
+
+              {/* Locality */}
+
+              <div className="entry-field">
+                <label htmlFor="customer-locality">
+                  Locality / Area
+                </label>
+
+                <input
+                  id="customer-locality"
+                  type="text"
+                  maxLength={150}
+                  value={customerProfile.locality}
+                  onChange={(event) =>
+                    updateCustomerField("locality", event.target.value)
+                  }
+                  placeholder="Enter locality or area"
+                />
+              </div>
+
+              {/* Street address */}
+
+              <div className="entry-field">
+                <label htmlFor="customer-address">
+                  Street address
+                </label>
+
+                <textarea
+                  id="customer-address"
+                  rows="3"
+                  maxLength={300}
+                  value={customerProfile.street_address}
+                  onChange={(event) =>
+                    updateCustomerField(
+                      "street_address",
+                      event.target.value
+                    )
+                  }
+                  placeholder="Enter complete street address"
+                />
+              </div>
+
+              {/* GPS capture */}
+
+              <div className="entry-field">
+                <label>GPS Location</label>
+
+                <div className="customer-location-row">
+                  <button
+                    className="entry-logout"
+                    type="button"
+                    onClick={captureCustomerLocation}
+                  >
+                    ◎ Update location
+                  </button>
+
+                  <span className="customer-location-note">
+                    {locationMessage ||
+                      "Use GPS to automatically fill the address fields."}
+                  </span>
+                </div>
+              </div>
+
+              {/* GPS coordinates */}
+
+              {customerProfile.latitude &&
+                customerProfile.longitude && (
+                  <small className="customer-location-note">
+                    GPS coordinates: {customerProfile.latitude},{" "}
+                    {customerProfile.longitude}
+                  </small>
+                )}
+
+              {/* Submit customer record */}
+
+              <button
+                className="entry-submit"
+                type="submit"
+                disabled={customerSaving}
+              >
+                {customerSaving
+                  ? "Submitting customer details…"
+                  : "Submit customer details →"}
+              </button>
+            </form>
+          </section>
+
         </div>
       </main>
     </>

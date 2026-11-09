@@ -12,7 +12,6 @@ import {
 
 function Login() {
   const [role, setRole] = useState("user");
-
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
@@ -42,9 +41,7 @@ function Login() {
     setLoading(true);
 
     try {
-      // ==========================================
       // STEP 1: LOGIN THROUGH FASTAPI
-      // ==========================================
 
       const loginData = await loginUser(
         email.trim(),
@@ -57,45 +54,29 @@ function Login() {
         );
       }
 
-      // ==========================================
-      // STEP 2: STORE ONLY JWT TOKEN
-      // ==========================================
+      // STEP 2: STORE JWT TOKEN
 
       saveToken(loginData.access_token);
 
-      // ==========================================
-      // STEP 3: GET ACTUAL USER FROM BACKEND
-      // ==========================================
+      // STEP 3: GET CURRENT USER FROM BACKEND
 
       const currentUser = await getCurrentUser();
 
-      // ==========================================
       // STEP 4: CLEAR PASSWORD
-      // ==========================================
 
       setPassword("");
 
-      // ==========================================
-      // STEP 5: USE BACKEND ROLE
-      // ==========================================
-      //
-      // The backend is the authority for the
-      // user's actual role.
-      //
+      // STEP 5: REDIRECT BASED ON BACKEND ROLE
 
       if (currentUser.role === "admin") {
         localStorage.setItem("portal_role", "admin");
 
-        // Clear email before leaving login page
         setEmail("");
-
         navigate("/admin");
       } else if (currentUser.role === "user") {
         localStorage.setItem("portal_role", "user");
 
-        // Clear email before leaving login page
         setEmail("");
-
         navigate("/user");
       } else {
         throw new Error(
@@ -105,19 +86,14 @@ function Login() {
     } catch (error) {
       console.error("Login error:", error);
 
-      // ==========================================
       // REMOVE AUTH DATA IF LOGIN FAILED
-      // ==========================================
 
       localStorage.removeItem("access_token");
       localStorage.removeItem("portal_role");
 
-      // Always clear password after an attempt
       setPassword("");
 
-      // ==========================================
       // USER-FRIENDLY ERROR MESSAGES
-      // ==========================================
 
       const errorText =
         error?.message?.toLowerCase() || "";
@@ -150,9 +126,19 @@ function Login() {
   return (
     <div className="login-page">
 
-      {/* =========================
-          LEFT HERO
-      ========================= */}
+      {/* BACK TO HOME BUTTON */}
+
+      <button
+        type="button"
+        className="back-to-home"
+        onClick={() => navigate("/")}
+        aria-label="Back to Veegronex home page"
+      >
+        <span aria-hidden="true">←</span>
+        Back to Home
+      </button>
+
+      {/* LEFT HERO */}
 
       <section
         className="login-hero"
@@ -171,7 +157,6 @@ function Login() {
         }}
       >
         <div className="hero-overlay">
-
           <div className="hero-content">
 
             <span className="hero-label">
@@ -199,21 +184,15 @@ function Login() {
             </div>
 
           </div>
-
         </div>
       </section>
 
-      {/* =========================
-          RIGHT LOGIN SECTION
-      ========================= */}
+      {/* RIGHT LOGIN SECTION */}
 
       <section className="login-section">
-
         <div className="login-container">
 
-          {/* =========================
-              LOGO
-          ========================= */}
+          {/* COMPANY LOGO */}
 
           <div className="logo-placeholder">
             VG
@@ -223,9 +202,7 @@ function Login() {
             Veegronex FreshFlow
           </h2>
 
-          {/* =========================
-              LOGIN CARD
-          ========================= */}
+          {/* LOGIN CARD */}
 
           <div className="login-card">
 
@@ -237,13 +214,9 @@ function Login() {
               Sign in to access the vegetable price management portal.
             </p>
 
-            {/* =========================
-                ROLE TOGGLE
-            ========================= */}
+            {/* ROLE TOGGLE */}
 
             <div className="role-toggle">
-
-              {/* PORTAL USER */}
 
               <button
                 type="button"
@@ -252,16 +225,12 @@ function Login() {
                 }
                 onClick={() => {
                   setRole("user");
-
-                  // Clear credentials when changing portal
                   clearLoginFields();
                 }}
                 disabled={loading}
               >
                 Portal User
               </button>
-
-              {/* ADMIN */}
 
               <button
                 type="button"
@@ -270,8 +239,6 @@ function Login() {
                 }
                 onClick={() => {
                   setRole("admin");
-
-                  // Clear credentials when changing portal
                   clearLoginFields();
                 }}
                 disabled={loading}
@@ -281,31 +248,27 @@ function Login() {
 
             </div>
 
-            {/* =========================
-                ERROR MESSAGE
-            ========================= */}
+            {/* ERROR MESSAGE */}
 
             {errorMessage && (
-              <div className="login-error">
+              <div
+                className="login-error"
+                role="alert"
+              >
                 {errorMessage}
               </div>
             )}
 
-            {/* =========================
-                LOGIN FORM
-            ========================= */}
+            {/* LOGIN FORM */}
 
             <form
               onSubmit={handleLogin}
               autoComplete="off"
             >
 
-              {/* =========================
-                  EMAIL
-              ========================= */}
+              {/* EMAIL */}
 
               <div className="input-group">
-
                 <label htmlFor="login-email">
                   EMAIL
                 </label>
@@ -325,15 +288,11 @@ function Login() {
                   autoComplete="off"
                   spellCheck="false"
                 />
-
               </div>
 
-              {/* =========================
-                  PASSWORD
-              ========================= */}
+              {/* PASSWORD */}
 
               <div className="input-group">
-
                 <label htmlFor="login-password">
                   PASSWORD
                 </label>
@@ -352,15 +311,11 @@ function Login() {
                   disabled={loading}
                   autoComplete="new-password"
                 />
-
               </div>
 
-              {/* =========================
-                  FORGOT PASSWORD
-              ========================= */}
+              {/* FORGOT PASSWORD */}
 
               <div className="forgot-password">
-
                 <button
                   type="button"
                   onClick={() =>
@@ -372,12 +327,9 @@ function Login() {
                 >
                   Forgot password?
                 </button>
-
               </div>
 
-              {/* =========================
-                  LOGIN BUTTON
-              ========================= */}
+              {/* LOGIN BUTTON */}
 
               <button
                 type="submit"
@@ -391,17 +343,10 @@ function Login() {
 
             </form>
 
-            {/* =========================
-                REGISTRATION LINK
-            =========================
-            
-            Registration is available only
-            for Portal Users.
-            */}
+            {/* REGISTRATION LINK */}
 
             {role === "user" && (
               <div className="register-link">
-
                 <span>
                   Don't have an account?
                 </span>
@@ -409,16 +354,12 @@ function Login() {
                 <Link to="/register">
                   Create an account
                 </Link>
-
               </div>
             )}
 
-            {/* =========================
-                LOGIN INFORMATION
-            ========================= */}
+            {/* LOGIN INFORMATION */}
 
             <div className="demo-box">
-
               <strong>
                 PORTAL ACCESS
               </strong>
@@ -427,17 +368,13 @@ function Login() {
                 Use your approved Veegronex FreshFlow account
                 credentials to access the selected portal.
               </p>
-
             </div>
 
           </div>
 
-          {/* =========================
-              SECURITY INFORMATION
-          ========================= */}
+          {/* SECURITY INFORMATION */}
 
           <div className="security-info">
-
             <span>
               🔒 Secure connection
             </span>
@@ -445,11 +382,9 @@ function Login() {
             <span className="system-status">
               ● System operational
             </span>
-
           </div>
 
         </div>
-
       </section>
 
     </div>
