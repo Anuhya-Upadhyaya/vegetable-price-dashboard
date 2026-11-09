@@ -115,11 +115,8 @@ def create_customer_submission(
         organization=data["organization"],
         customer_type=data.get("customer_type") or "Retailer",
 
-        # Use the signed-in account's phone as the primary number.
-        phone=user.phone,
-
-        # Keep the form's alternate number separately.
-        alternate_phone=data.get("alternate_phone"),
+       # The number entered in the customer form is the primary number.
+        phone=data["phone"],
 
         # Fall back to the registered account email if necessary.
         email=data.get("email") or user.email,
@@ -208,8 +205,7 @@ Account phone: {user.phone}
 Customer / Business information:
 Contact name: {customer.contact_name}
 Customer email: {customer.email}
-Primary phone: {customer.phone}
-Alternate phone: {customer.alternate_phone or "Not provided"}
+Primary mobile number: {customer.phone}
 Organization: {customer.organization}
 Customer type: {customer.customer_type}
 
@@ -321,8 +317,7 @@ def list_customer_submissions(
             "organization": profile.organization,
             "customer_type": profile.customer_type or "Retailer",
             "email": profile.email or user.email or "",
-            "phone": user.phone or "",
-            "alternate_phone": profile.alternate_phone,
+            "phone": profile.phone,
             "designation": profile.designation,
             "country": profile.country or "India",
             "state": profile.state or "Not provided",

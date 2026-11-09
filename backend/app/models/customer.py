@@ -27,7 +27,6 @@ class Customer(Base):
     email: Mapped[str] = mapped_column(String(255), nullable=False)
     phone: Mapped[str] = mapped_column(String(30), nullable=False)
 
-    alternate_phone: Mapped[str | None] = mapped_column(String(30))
     designation: Mapped[str | None] = mapped_column(String(120))
 
     country: Mapped[str] = mapped_column(

@@ -19,7 +19,7 @@ class CustomerProfileUpsert(BaseModel):
     # Required customer details
     contact_name: str = Field(min_length=2, max_length=150)
     organization: str = Field(min_length=2, max_length=180)
-    alternate_phone: str = Field(min_length=7, max_length=20)
+    phone: str = Field(min_length=7, max_length=20)
     email: str | None = Field(default=None, max_length=254)
 
     # Location details
@@ -101,7 +101,7 @@ class CustomerProfileUpsert(BaseModel):
     @field_validator(
         "contact_name",
         "organization",
-        "alternate_phone",
+        "phone",
         "city",
     )
     @classmethod
@@ -190,8 +190,6 @@ class CustomerSubmissionResponse(BaseModel):
     customer_type: str
     email: str
     phone: str
-
-    alternate_phone: str | None = None
     designation: str | None = None
 
     # Location details

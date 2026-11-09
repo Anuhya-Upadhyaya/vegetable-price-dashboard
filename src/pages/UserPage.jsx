@@ -48,7 +48,7 @@ const emptyCustomerProfile = {
   contact_name: "",
   organization: "",
   email: "",
-  alternate_phone: "",
+  phone: "",
   street_address: "",
   locality: "",
   city: "",
@@ -739,7 +739,7 @@ function UserPage() {
       const payload = {
         contact_name: customerProfile.contact_name.trim(),
         organization: customerProfile.organization.trim(),
-        alternate_phone: customerProfile.alternate_phone.trim(),
+        phone: customerProfile.phone.trim(),
 
         email: customerProfile.email.trim() || null,
 
@@ -760,10 +760,8 @@ function UserPage() {
             : Number(customerProfile.longitude),
       };
 
-      // IMPORTANT:
       // POST /customers creates a NEW record.
       // It does not overwrite an existing submission.
-
       await createCustomerSubmission(payload);
 
       // Clear the form only after the server confirms success.
@@ -775,7 +773,7 @@ function UserPage() {
         "Customer information submitted successfully! You can submit another customer record whenever needed."
       );
     } catch (err) {
-      // Keep all entered information if submission fails.
+      // Preserve entered information if submission fails.
       setCustomerError(
         err?.message ||
           "Unable to submit customer information. Please try again."
@@ -1142,9 +1140,7 @@ function UserPage() {
       <main className="entry-page">
         <div className="entry-shell">
 
-          {/* ------------------------------------------------ */}
           {/* HEADER */}
-          {/* ------------------------------------------------ */}
 
           <header className="entry-topbar">
             <div className="entry-brand">
@@ -1170,9 +1166,7 @@ function UserPage() {
             </button>
           </header>
 
-          {/* ------------------------------------------------ */}
           {/* PAGE HEADING */}
-          {/* ------------------------------------------------ */}
 
           <section className="entry-heading">
             <div className="entry-eyebrow">
@@ -1191,9 +1185,7 @@ function UserPage() {
 
           <div className="entry-grid">
 
-            {/* ============================================== */}
             {/* PRICE ENTRY FORM */}
-            {/* ============================================== */}
 
             <section className="entry-card">
               <div className="entry-card-head">
@@ -1320,9 +1312,7 @@ function UserPage() {
               </div>
             </section>
 
-            {/* ============================================== */}
             {/* PREVIOUS PRICE ENTRIES */}
-            {/* ============================================== */}
 
             <section className="entry-card">
               <div className="entry-card-head">
@@ -1435,9 +1425,7 @@ function UserPage() {
             </section>
           </div>
 
-          {/* ============================================== */}
           {/* CORRECTION MESSAGES */}
-          {/* ============================================== */}
 
           {correctionMessage && (
             <div
@@ -1459,9 +1447,7 @@ function UserPage() {
             </div>
           )}
 
-          {/* ============================================== */}
           {/* CORRECTION REQUEST FORM */}
-          {/* ============================================== */}
 
           {selectedCorrectionEntry && (
             <section className="entry-card" style={{ marginTop: 20 }}>
@@ -1576,9 +1562,7 @@ function UserPage() {
             </section>
           )}
 
-          {/* ============================================== */}
           {/* CORRECTION REQUEST HISTORY */}
-          {/* ============================================== */}
 
           {correctionRequests.length > 0 && (
             <section className="entry-card" style={{ marginTop: 20 }}>
@@ -1636,9 +1620,7 @@ function UserPage() {
             </section>
           )}
 
-          {/* ============================================== */}
           {/* VEGETABLE PRICE TRENDS */}
-          {/* ============================================== */}
 
           <section className="entry-card" style={{ marginTop: 20 }}>
             <div className="entry-card-head">
@@ -1687,9 +1669,7 @@ function UserPage() {
             </div>
           </section>
 
-          {/* ============================================== */}
           {/* CUSTOMER INFORMATION FORM */}
-          {/* ============================================== */}
 
           <section className="entry-card" style={{ marginTop: 20 }}>
             <div className="entry-card-head">
@@ -1766,11 +1746,11 @@ function UserPage() {
                 />
               </div>
 
-              {/* Alternate mobile number */}
+              {/* Primary mobile number */}
 
               <div className="entry-field">
                 <label htmlFor="customer-mobile">
-                  Alternate mobile number *
+                  Mobile number *
                 </label>
 
                 <input
@@ -1779,14 +1759,14 @@ function UserPage() {
                   required
                   minLength={7}
                   maxLength={20}
-                  value={customerProfile.alternate_phone}
+                  value={customerProfile.phone}
                   onChange={(event) =>
                     updateCustomerField(
-                      "alternate_phone",
+                      "phone",
                       event.target.value
                     )
                   }
-                  placeholder="Enter alternate mobile number"
+                  placeholder="Enter primary mobile number"
                 />
               </div>
 

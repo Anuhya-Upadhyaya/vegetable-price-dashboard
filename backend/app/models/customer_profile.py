@@ -15,7 +15,7 @@ class CustomerProfile(Base):
     organization: Mapped[str] = mapped_column(String(180), nullable=False)
     customer_type: Mapped[str] = mapped_column(String(60), nullable=False, default="Retailer")
     designation: Mapped[str | None] = mapped_column(String(100))
-    alternate_phone: Mapped[str | None] = mapped_column(String(20))
+    phone: Mapped[str] = mapped_column(String(20),nullable=False)
     email: Mapped[str | None] = mapped_column(String(254), nullable=True)
     contact_method: Mapped[str | None] = mapped_column(String(30))
     country: Mapped[str] = mapped_column(String(80), nullable=False, default="India")
